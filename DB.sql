@@ -51,49 +51,16 @@ CREATE TABLE Complaints (
     FOREIGN KEY (student_usn) REFERENCES Users(usn) ON DELETE SET NULL
 );
 
--- EMERGENCY REQUESTS TABLE
-CREATE TABLE EmergencyRequests (
-    request_id INT AUTO_INCREMENT PRIMARY KEY,
-    student_usn VARCHAR(20) NOT NULL,
-    location TEXT,
-    emergency_type ENUM('Medical', 'Safety', 'Other') NOT NULL,
-    status ENUM('Notified', 'Resolved') DEFAULT 'Notified',
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (student_usn) REFERENCES Users(usn) ON DELETE CASCADE
+
+CREATE TABLE EmergencyReports (
+    report_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_usn VARCHAR(20),
+    emergency_type VARCHAR(255) NOT NULL,
+    latitude DECIMAL(10,6) NOT NULL,
+    longitude DECIMAL(10,6) NOT NULL,
+    emergency_contact VARCHAR(20),
+    report_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-INSERT INTO BusRoutes (start_location, end_location, stops, schedule) VALUES
-('Hubli Campus', 'Dharwad Main Stop', '["Stop1", "Stop2", "Stop3"]', '8:00 AM, 1:00 PM, 6:00 PM'),
-('Dharwad Campus', 'Hubli Main Stop', '["StopA", "StopB", "StopC"]', '9:00 AM, 2:00 PM, 7:00 PM');
-INSERT INTO Buses (bus_number, capacity, route_id) VALUES
-('KA-25-1234', 40, 1),
-('KA-25-5678', 50, 2);
--- Students (Hubli & Dharwad)
-INSERT INTO Users (usn, name, email, phone, password_hash, role, department, region) VALUES
-('1RV23CS001', 'Amit Kumar', 'amit@example.com', '9876543210', 'password123', 'Student', 'CSE', 'Hubli'),
-('1RV23EC002', 'Priya Sharma', 'priya@example.com', '9876543211', 'password456', 'Student', 'ECE', 'Dharwad');
-
--- Driver
-INSERT INTO Users (name, email, phone, password_hash, role, bus_assigned) VALUES
-('Ramesh Patil', 'ramesh@example.com', '9876543212', 'driverpass', 'Driver', 1);
-
--- Bus Coordinator
-INSERT INTO Users (name, email, phone, password_hash, role) VALUES
-('Coordinator John', 'john@example.com', '9876543213', 'coordpass', 'Coordinator');
-INSERT INTO BusVoting (student_usn, bus_id, vote_weight) VALUES
-('1RV23CS001', 1, 1.0),  -- Amit votes for Bus 1 (Hubli region, full weight)
-('1RV23EC002', 1, 0.5);  -- Priya votes for Bus 1 (Dharwad student voting for Hubli, half weight)
-INSERT INTO Complaints (student_usn, complaint_type, description) VALUES
-('1RV23CS001', 'Rash Driving', 'The driver was speeding on the highway.'),
-('1RV23EC002', 'Overcrowding', 'Bus was full, but the driver still allowed more students.');
-INSERT INTO EmergencyRequests (student_usn, location, emergency_type) VALUES
-('1RV23CS001', 'Near College Gate', 'Medical');
-SELECT * FROM BusRoutes;
-SELECT * FROM Buses;
-SELECT * FROM Users;
-SELECT * FROM BusVoting;
-SELECT * FROM Complaints;
-SELECT * FROM EmergencyRequests;
-
 SELECT user, host, plugin FROM mysql.user WHERE user = 'root';
 ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'pass123';
 CREATE TABLE BusVotes (
@@ -105,17 +72,24 @@ CREATE TABLE BusVotes (
     FOREIGN KEY (bus_id) REFERENCES Buses(bus_id),
     FOREIGN KEY (student_usn) REFERENCES Users(usn)
 );
-SELECT * FROM Users WHERE usn = '4JN21CS001';
-INSERT INTO Users (usn, name, email, phone, password_hash, role, department, region)
-VALUES ('4JN21CS001', 'John Doe', 'tan@example.com', '987654321', 'securepass', 'Student', 'CSE', 'Hubli');
-SELECT id, name, phone FROM Users WHERE role = 'Driver';
-INSERT INTO Users (usn, name, email, phone, password_hash, role, department, region, bus_assigned) 
-VALUES ('DR123', 'John Doe', 'driver@example.com', '+918073633340', 'passwaoo', 'Driver', NULL, NULL, 1);
-desc Buses;
-SET FOREIGN_KEY_CHECKS = 1;
-SELECT bus_id, SUM(vote_weight) AS total_votes FROM BusVotes GROUP BY bus_id;
+UPDATE Buses 
+SET bus_img = 'https://example.com/images/bus_ka25_1234.jpg' 
+WHERE bus_id = 1;
+
+UPDATE Buses 
+SET bus_img = 'https://example.com/images/bus_ka25_5678.jpg' 
+WHERE bus_id = 2;
 
 show tables;
-select*from BusVotes;
+ALTER TABLE complaints drop COLUMN student_usn ;
+DELETE FROM BusVotes WHERE vote_time < NOW() - INTERVAL 30 MINUTE;
+select * from emergencyreports;
+ALTER TABLE EmergencyRequests ADD COLUMN latitude DECIMAL(10, 8);
+ALTER TABLE EmergencyRequests ADD COLUMN emergency_contact VARCHAR(15); 
+
+drop table busvoting  ;
+select* from busroutes;
+
+
 
 
