@@ -164,6 +164,144 @@ function sendTelegramAlert(bus_id, totalVotes) {
             console.error("Error sending Telegram alert:", error);
         });
 }
+// ✅ Function to delete expired votes every 5 minutes
+function deleteExpiredVotes() {
+    const sql = "DELETE FROM BusVotes WHERE vote_time < DATE_SUB(NOW(), INTERVAL 30 MINUTE)";
+    db.query(sql, (err, result) => {
+        if (err) {
+            console.error("❌ Error deleting expired votes:", err);
+        } else {
+            console.log(`✅ Expired votes removed: ${result.affectedRows}`);
+        }
+    });
+}
+
+// Run the cleanup every 5 minutes
+setInterval(deleteExpiredVotes, 5 * 60 * 1000);
+
+// Fetch bus details
+app.get("/api/buses", (req, res) => {
+    const sql = "SELECT bus_id, bus_number, capacity, route_id, bus_img FROM Buses";
+    
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error("Error fetching buses:", err);
+            return res.status(500).json({ message: "Database error", error: err });
+        }
+
+        res.status(200).json(results);
+    });
+});
+// 📌 POST: Student submits a complaint
+app.post("/api/complaints", (req, res) => {
+    const { student_usn, complaint_type, description } = req.body;
+
+    if (!complaint_type || !description) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const sql = "INSERT INTO Complaints (student_usn, complaint_type, description) VALUES (?, ?, ?)";
+    db.query(sql, [student_usn, complaint_type, description], (err, result) => {
+        if (err) {
+            console.error("Error inserting complaint:", err);
+            return res.status(500).json({ message: "Database error", error: err });
+        }
+        res.status(201).json({ message: "Complaint submitted successfully", complaintId: result.insertId });
+    });
+});
+
+// 📌 GET: Fetch all complaints (for Coordinators)
+app.get("/api/complaints", (req, res) => {
+    const sql = "SELECT * FROM Complaints ORDER BY created_at DESC";
+    db.query(sql, (err, results) => {
+        if (err) {
+            console.error("Error fetching complaints:", err);
+            return res.status(500).json({ message: "Database error", error: err });
+        }
+        res.status(200).json(results);
+    });
+});
+
+// 📌 PUT: Update complaint status (Pending → In Progress → Resolved)
+app.put("/api/complaints/:id/status", (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!["Pending", "In Progress", "Resolved"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const sql = "UPDATE Complaints SET status = ? WHERE complaint_id = ?";
+    db.query(sql, [status, id], (err, result) => {
+        if (err) {
+            console.error("Error updating complaint status:", err);
+            return res.status(500).json({ message: "Database error", error: err });
+        }
+        res.status(200).json({ message: "Complaint status updated successfully" });
+    });
+});
+
+app.post("/api/emergency", (req, res) => {
+    const { emergencyType, latitude, longitude, emergencyContact, student_usn } = req.body;
+
+    if (!latitude || !longitude || !emergencyType) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // ✅ Store emergency report in Database (Optional)
+    const sql = "INSERT INTO EmergencyReports (student_usn, emergency_type, latitude, longitude, emergency_contact) VALUES (?, ?, ?, ?, ?)";
+    db.query(sql, [student_usn, emergencyType, latitude, longitude, emergencyContact], (err, result) => {
+        if (err) {
+            console.error("Error storing emergency report:", err);
+            return res.status(500).json({ message: "Database error", error: err });
+        }
+
+        console.log("Emergency report stored successfully.");
+
+        // ✅ Send Telegram Alert to multiple authorities
+        sendTelegramEmergencyAlert(emergencyType, latitude, longitude, emergencyContact);
+
+        res.status(201).json({ message: "Emergency reported successfully!" });
+    });
+});
+//const axios = require("axios"); // ✅ Import Axios
+
+function sendTelegramEmergencyAlert(emergencyType, latitude, longitude, emergencyContact) {
+    const TELEGRAM_BOT_TOKEN = "7629370561:AAHtrC7OuESHgWAGlqtErrb1_mPFXQ70awM"; // ✅ Replace with actual token
+
+    // ✅ List of Valid Chat IDs
+    const TELEGRAM_CHAT_IDS = [
+        "7545143019",  // Bus Coordinator (Replace with real chat ID)
+        //"1146747265",  // Security Team
+        //"1122334455"  // College Admin
+    ];
+
+    // ✅ Ensure Latitude & Longitude Are Valid
+    if (!latitude || !longitude) {
+        console.error("❌ Missing location data!");
+        return;
+    }
+
+    const message = `🚨 *EMERGENCY ALERT* 🚨\n\n +
+                    ⚠ *Type:* ${emergencyType}\n +
+                    📍 *Location:* [Google Maps](https://www.google.com/maps?q=${latitude || "Not Provided"},${longitude || "Not Provided"})\n +
+                    📞 *Emergency Contact:* ${emergencyContact || "Not Provided"}`;
+
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+    TELEGRAM_CHAT_IDS.forEach(chatId => {
+        const data = {
+            chat_id: chatId,
+            text: message,
+            parse_mode: "Markdown"  // ✅ Makes Google Maps link clickable
+        };
+
+        axios.post(url, data)
+            .then(response => console.log(`✅ Emergency alert sent to ${chatId}, response.data`))
+            .catch(error => console.error(`❌ Error sending alert to ${chatId}:, error.response?.data || error.message`));
+    });
+}
+
 
 // Start Server
 app.listen(PORT, () => {
